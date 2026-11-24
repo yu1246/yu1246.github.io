@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>🎸 指板マスター</title>
+  <style>
+    /* --- リセット & ベーススタイル --- */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+      background-color: #FFFFFF;
+      color: #1A252F;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding-top: 12px;
+      padding-bottom: 24px;
+      overflow-x: hidden;
+    }
+
+    /* --- 1. ヘッダー & スコアバー --- */
+    h1 {
+      font-size: 26px;
+      font-weight: 900;
+      color: #1A252F;
+      margin-bottom: 4px;
+      letter-spacing: 0.5px;
+    }
+
+    .header-stats {
+      width: 90%;
+      max-width: 600px;
+      height: 22px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 6px;
+    }
+
+    .stat-left {
+      position: absolute;
+      left: 0;
+      font-size: 15px;
+      font-weight: 700;
+      color: #2C3E50;
+    }
+
+    .stat-center {
+      font-size: 15px;
+      font-weight: 700;
+      color: #E74C3C;
+    }
+
+    .stat-right {
+      position: absolute;
+      right: 0;
+      font-size: 13px;
+      font-weight: 700;
+      color: #F39C12;
+    }
+
+    /* --- 2. トグルボタン群 --- */
+    .controls-row {
+      width: 98%;
+      max-width: 640px;
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 4px;
+    }
+
+    .toggle-btn {
+      margin: 2px 3px;
+      background-color: #F0F0F0;
+      border: 1px solid #DDDDDD;
+      border-radius: 20px;
+      padding: 5px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #333333;
+      cursor: pointer;
+      transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+    }
+
+    .toggle-btn:active {
+      transform: scale(0.96);
+    }
+
+    .toggle-btn.active {
+      background-color: #8E44AD;
+      border-color: #8E44AD;
+      color: #FFFFFF;
+    }
+
+    /* --- 3. 指板エリア --- */
+    .fretboard-wrapper {
+      width: 100%;
+      background-color: #3E2723;
+      padding: 12px 0;
+      margin-top: 6px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      transition: background-color 0.25s;
+    }
+
+    .fretboard-wrapper.maple {
+      background-color: #F5DEB3;
+    }
+
+    .fretboard-inner {
+      display: inline-flex;
+      flex-direction: column;
+      padding: 0 12px;
+      min-width: max-content;
+    }
+
+    .string-row {
+      display: flex;
+      height: 28px;
+    }
+
+    /* フレットセルの幅を厳密に固定してズレと楕円化を防止 */
+    .fret-cell {
+      width: 56px;
+      min-width: 56px;
+      max-width: 56px;
+      flex-shrink: 0;
+      height: 100%;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .fret-cell.open-fret {
+      width: 34px;
+      min-width: 34px;
+      max-width: 34px;
+    }
+
+    /* 弦の描画 */
+    .string-wire {
+      width: 100%;
+      background-color: #D3D3D3;
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      box-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+      z-index: 1;
+    }
+
+    /* ナット・フレット金属線 */
+    .nut-bar {
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background-color: #F5F5DC;
+      z-index: 2;
+    }
+
+    .fret-wire {
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background-color: #A9A9A9;
+      z-index: 2;
+    }
+
+    .maple .fret-wire {
+      background-color: #8B7355;
+    }
+
+    /* ポジションマーク（インレイ） */
+    .inlay-dot {
+      width: 14px;
+      height: 14px;
+      min-width: 14px;
+      min-height: 14px;
+      aspect-ratio: 1 / 1;
+      flex-shrink: 0;
+      border-radius: 50%;
+      background-color: #E0E0E0;
+      position: absolute;
+      bottom: -7px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .maple .inlay-dot {
+      background-color: #4A4A4A;
+    }
+
+    /* ノート・ターゲット丸マーカー（正円保証・中央固定） */
+    .note-dot {
+      width: 22px;
+      height: 22px;
+      min-width: 22px;
+      min-height: 22px;
+      aspect-ratio: 1 / 1;
+      flex-shrink: 0;
+      border-radius: 50%;
+      border: 1.5px solid #FFFFFF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #FFFFFF;
+      font-size: 9px;
+      font-weight: 800;
+      line-height: 1;
+      position: relative;
+      z-index: 5;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+    }
+
+    .note-dot.red { background-color: #FF3B30; }
+    .note-dot.blue { background-color: #3498DB; }
+    .note-dot.purple { background-color: #8E44AD; }
+    .note-dot.dark { background-color: rgba(44, 62, 80, 0.88); }
+
+    /* 暗転マスク */
+    .dim-mask {
+      position: absolute;
+      inset: 0;
+      background-color: rgba(0, 0, 0, 0.65);
+      z-index: 4;
+      pointer-events: none;
+    }
+
+    /* フレット番号行 */
+    .fret-numbers-row {
+      display: flex;
+      height: 20px;
+      margin-top: 6px;
+    }
+
+    .fret-num-cell {
+      width: 56px;
+      min-width: 56px;
+      max-width: 56px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: #D7CCC8;
+    }
+
+    .fret-num-cell.open-fret {
+      width: 34px;
+      min-width: 34px;
+      max-width: 34px;
+    }
+
+    .maple .fret-num-cell {
+      color: #8B7355;
+    }
+
+    /* --- 4. ガイド・フィードバックエリア --- */
+    .guide-msg {
+      font-size: 14px;
+      font-weight: 700;
+      margin-top: 8px;
+      text-align: center;
+      padding: 0 12px;
+      color: #1A252F;
+    }
+
+    .feedback-area {
+      height: 44px;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .result-text {
+      font-size: 26px;
+      font-weight: 800;
+      color: #E74C3C;
+      transition: transform 0.22s ease-out;
+    }
+
+    .result-text.pop {
+      transform: scale(1.35);
+    }
+
+    .start-btn {
+      background-color: #27AE60;
+      color: #FFFFFF;
+      border: none;
+      border-radius: 20px;
+      padding: 8px 22px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 2px 5px rgba(39, 174, 96, 0.35);
+    }
+
+    .start-btn:active {
+      transform: scale(0.96);
+    }
+
+    /* --- 5. 四択ボタンエリア --- */
+    .options-grid {
+      width: 90%;
+      max-width: 440px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .option-btn {
+      height: 48px;
+      background-color: #2C3E50;
+      color: #FFFFFF;
+      border: none;
+      border-radius: 8px;
+      font-size: 17px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+      transition: background-color 0.15s, transform 0.1s;
+    }
+
+    .option-btn:disabled {
+      background-color: #95A5A6;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .option-btn:active:not(:disabled) {
+      transform: scale(0.97);
+    }
+
+    /* --- 6. スケール設定スライダーボックス --- */
+    .scale-sliders-box {
+      width: 90%;
+      max-width: 440px;
+      background-color: #F8F9FA;
+      border: 1px solid #E9ECEF;
+      border-radius: 12px;
+      padding: 10px 14px;
+      margin-top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .slider-label-key {
+      width: 65px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #2C3E50;
+      flex-shrink: 0;
+    }
+
+    .slider-label-scale {
+      width: 105px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #8E44AD;
+      flex-shrink: 0;
+    }
+
+    input[type="range"] {
+      flex: 1;
+      accent-color: #8E44AD;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🎸 指板マスター</h1>
+
+  <div class="header-stats" id="headerStats"></div>
+
+  <div class="controls-row">
+    <button class="toggle-btn" id="btnMode"></button>
+    <button class="toggle-btn" id="btnString"></button>
+    <button class="toggle-btn" id="btnFret"></button>
+    <button class="toggle-btn" id="btnTime"></button>
+  </div>
+
+  <div class="controls-row">
+    <button class="toggle-btn" id="btnVis"></button>
+    <button class="toggle-btn" id="btnTheme"></button>
+  </div>
+
+  <div class="fretboard-wrapper" id="fretboardWrapper">
+    <div class="fretboard-inner" id="fretboardInner"></div>
+  </div>
+
+  <div class="guide-msg" id="guideMsg"></div>
+
+  <div class="feedback-area" id="feedbackArea"></div>
+
+  <div class="options-grid" id="optionsGrid"></div>
+
+  <div class="scale-sliders-box" id="scaleSlidersBox" style="display: none;">
+    <div class="slider-row">
+      <span class="slider-label-key" id="keyLabel">Key: C</span>
+      <input type="range" id="keySlider" min="0" max="11" value="0">
+    </div>
+    <div class="slider-row">
+      <span class="slider-label-scale" id="scaleLabel">Major Penta</span>
+      <input type="range" id="scaleSlider" min="0" max="4" value="0">
+    </div>
+  </div>
+
+  <script>
+    // --- 定数定義 ---
+    const NOTES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    const INTERVALS = ["R", "m2", "M2", "m3", "M3", "P4", "b5", "P5", "m6", "M6", "m7", "M7"];
+    const OPEN_STRINGS = { 1: 4, 2: 11, 3: 7, 4: 2, 5: 9, 6: 4 };
+    const TOTAL_FRETS = 22;
+    const STRINGS = [1, 2, 3, 4, 5, 6];
+    const SINGLE_DOT_FRETS = [3, 5, 7, 9, 15, 17, 19, 21];
+    const DOUBLE_DOT_FRETS = [12];
+
+    const SCALES = [
+      { name: "Major Penta", intervals: [0, 2, 4, 7, 9] },
+      { name: "Minor Penta", intervals: [0, 3, 5, 7, 10] },
+      { name: "Major (Ionian)", intervals: [0, 2, 4, 5, 7, 9, 11] },
+      { name: "Minor (Aeolian)", intervals: [0, 2, 3, 5, 7, 8, 10] },
+      { name: "Dorian", intervals: [0, 2, 3, 5, 7, 9, 10] }
+    ];
+
+    // --- アプリ状態管理 ---
+    let state = {
+      mode: "NOTE",        // NOTE | INTERVAL | SCALE
+      stringFilter: "ALL", // ALL | HIGH | LOW
+      fretFilter: "ALL",   // ALL | LOW
+      theme: "ROSEWOOD",   // ROSEWOOD | MAPLE
+      timeMode: "FREE",    // FREE | TIME
+      showAllNotes: false,
+      selectedKeyIndex: 0,
+      selectedScaleIndex: 0,
+      question: { rootString: 6, rootFret: 0, targetString: 6, targetFret: 0, answer: "E" },
+      options: [],
+      score: 0,
+      combo: 0,
+      timeLeft: 60,
+      isPlaying: false,
+      resultMsg: "",
+      timerId: null
+    };
+
+    function randInt(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    // --- 問題生成 ---
+    function generateQuestion() {
+      const minStr = state.stringFilter === "LOW" ? 4 : 1;
+      const maxStr = state.stringFilter === "HIGH" ? 3 : 6;
+      const maxFretLimit = state.fretFilter === "LOW" ? 11 : TOTAL_FRETS;
+
+      if (state.mode === "NOTE") {
+        const tStr = randInt(minStr, maxStr);
+        const tFret = randInt(0, maxFretLimit);
+        const ansNote = NOTES[(OPEN_STRINGS[tStr] + tFret) % 12];
+        const opts = new Set([ansNote]);
+        while (opts.size < 4) opts.add(NOTES[randInt(0, 11)]);
+        state.question = { rootString: 0, rootFret: 0, targetString: tStr, targetFret: tFret, answer: ansNote };
+        state.options = Array.from(opts).sort(() => Math.random() - 0.5);
+      } else if (state.mode === "INTERVAL") {
+        const rStr = randInt(minStr, maxStr);
+        const rFret = randInt(0, maxFretLimit);
+        let tStr, tFret, diff;
+        do {
+          const tMax = Math.min(rStr, maxStr);
+          tStr = randInt(minStr, tMax);
+          const fMin = Math.max(0, rFret - 2);
+          const fMax = Math.min(maxFretLimit, rFret + 4);
+          tFret = randInt(fMin, fMax);
+          diff = ((OPEN_STRINGS[tStr] + tFret - (OPEN_STRINGS[rStr] + rFret)) % 12 + 12) % 12;
+        } while (diff === 0);
+
+        const ansInterval = INTERVALS[diff];
+        const opts = new Set([ansInterval]);
+        while (opts.size < 4) opts.add(INTERVALS[randInt(1, 11)]);
+        state.question = { rootString: rStr, rootFret: rFret, targetString: tStr, targetFret: tFret, answer: ansInterval };
+        state.options = Array.from(opts).sort(() => Math.random() - 0.5);
+      } else {
+        // スケールモード：ルート以外の構成音の度数を出題
+        const scale = SCALES[state.selectedScaleIndex];
+        const nonRootIntervals = scale.intervals.filter(i => i !== 0);
+        const chosenInterval = nonRootIntervals[randInt(0, nonRootIntervals.length - 1)];
+        const targetPitch = (state.selectedKeyIndex + chosenInterval) % 12;
+
+        let tStr, tFret, pitch;
+        do {
+          tStr = randInt(minStr, maxStr);
+          tFret = randInt(0, maxFretLimit);
+          pitch = (OPEN_STRINGS[tStr] + tFret) % 12;
+        } while (pitch !== targetPitch);
+
+        const ansLabel = INTERVALS[chosenInterval];
+        const scaleLabels = scale.intervals.map(i => INTERVALS[i]);
+        const opts = new Set([ansLabel]);
+        while (opts.size < Math.min(4, scaleLabels.length)) {
+          opts.add(scaleLabels[randInt(0, scaleLabels.length - 1)]);
+        }
+        while (opts.size < 4) {
+          opts.add(INTERVALS[randInt(0, 11)]);
+        }
+        state.question = { rootString: 0, rootFret: 0, targetString: tStr, targetFret: tFret, answer: ansLabel };
+        state.options = Array.from(opts).sort(() => Math.random() - 0.5);
+      }
+    }
+
+    // --- セッションリセット ---
+    function resetSession() {
+      if (state.timerId) clearInterval(state.timerId);
+      state.isPlaying = false;
+      state.timeLeft = 60;
+      state.score = 0;
+      state.combo = 0;
+      state.resultMsg = "";
+      if (state.timeMode === "TIME") state.showAllNotes = false;
+      generateQuestion();
+      render();
+    }
+
+    // --- タイムアタック開始 ---
+    function startTimer() {
+      state.score = 0;
+      state.combo = 0;
+      state.timeLeft = 60;
+      state.isPlaying = true;
+      state.showAllNotes = false;
+      state.resultMsg = "START!";
+      generateQuestion();
+      render();
+      triggerPop();
+
+      if (state.timerId) clearInterval(state.timerId);
+      state.timerId = setInterval(() => {
+        state.timeLeft -= 1;
+        if (state.timeLeft <= 0) {
+          clearInterval(state.timerId);
+          state.isPlaying = false;
+          state.resultMsg = "TIME UP!";
+          triggerPop();
+        }
+        render();
+      }, 1000);
+    }
+
+    function triggerPop() {
+      const el = document.getElementById("resultText");
+      if (el) {
+        el.classList.add("pop");
+        setTimeout(() => el.classList.remove("pop"), 220);
+      }
+    }
+
+    // --- UI描画 ---
+    function render() {
+      const isDark = state.theme === "ROSEWOOD";
+      const isTimeAttack = state.timeMode === "TIME";
+      const isPlayable = state.timeMode === "FREE" || state.isPlaying;
+
+      // スコアバー
+      const statsEl = document.getElementById("headerStats");
+      statsEl.innerHTML = isTimeAttack ? `
+        <span class="stat-left">SCORE: ${state.score}</span>
+        <span class="stat-center">TIME: ${state.timeLeft}s</span>
+        <span class="stat-right">${state.combo > 1 ? state.combo + " COMBO!" : ""}</span>
+      ` : "";
+
+      // トグルボタンラベル
+      document.getElementById("btnMode").textContent =
+        state.mode === "NOTE" ? "🎵 音名" : state.mode === "INTERVAL" ? "📏 度数" : "🎸 スケール";
+      document.getElementById("btnString").textContent =
+        "弦: " + (state.stringFilter === "ALL" ? "全て" : state.stringFilter === "HIGH" ? "1-3弦" : "4-6弦");
+      document.getElementById("btnFret").textContent =
+        "フレット: " + (state.fretFilter === "ALL" ? "全体" : "0-11");
+      document.getElementById("btnTime").textContent =
+        isTimeAttack ? "⏱ 60秒" : "♾ フリー";
+
+      const btnVis = document.getElementById("btnVis");
+      btnVis.style.display = isTimeAttack ? "none" : "inline-block";
+      btnVis.textContent = state.showAllNotes ? "👁 可視化:ON" : "🙈 可視化:OFF";
+      btnVis.classList.toggle("active", state.showAllNotes);
+
+      document.getElementById("btnTheme").textContent = isDark ? "🪵 ローズ" : "🍁 メイプル";
+
+      // 指板テーマ
+      const fbWrapper = document.getElementById("fretboardWrapper");
+      fbWrapper.classList.toggle("maple", !isDark);
+
+      // 指板セル生成
+      const fbInner = document.getElementById("fretboardInner");
+      let html = "";
+
+      STRINGS.forEach(strNum => {
+        const isActiveStr = state.stringFilter === "ALL" ||
+          (state.stringFilter === "HIGH" && strNum <= 3) ||
+          (state.stringFilter === "LOW" && strNum >= 4);
+
+        html += `<div class="string-row">`;
+        for (let fretNum = 0; fretNum <= TOTAL_FRETS; fretNum++) {
+          const isActiveFret = state.fretFilter === "ALL" || fretNum <= 11;
+          const isCellActive = isActiveStr && isActiveFret;
+          const isRoot = state.mode === "INTERVAL" && state.question.rootString === strNum && state.question.rootFret === fretNum;
+          const isTarget = state.question.targetString === strNum && state.question.targetFret === fretNum;
+
+          html += `<div class="fret-cell ${fretNum === 0 ? "open-fret" : ""}">`;
+          html += `<div class="string-wire" style="height: ${1 + strNum * 0.35}px;"></div>`;
+
+          if (fretNum === 0) {
+            html += `<div class="nut-bar"></div>`;
+          } else {
+            html += `<div class="fret-wire"></div>`;
+          }
+
+          // ポジションマーク（インレイ）
+          if (fretNum > 0) {
+            if (SINGLE_DOT_FRETS.includes(fretNum) && strNum === 3) {
+              html += `<div class="inlay-dot"></div>`;
+            }
+            if (DOUBLE_DOT_FRETS.includes(fretNum) && (strNum === 2 || strNum === 4)) {
+              html += `<div class="inlay-dot"></div>`;
+            }
+          }
+
+          // 音名・度数モードのマーカー表示
+          if (state.mode !== "SCALE" && !state.showAllNotes && isPlayable) {
+            if ((state.mode === "NOTE" && isTarget) || isRoot) {
+              html += `<div class="note-dot red">${isRoot ? "R" : ""}</div>`;
+            } else if (state.mode === "INTERVAL" && isTarget) {
+              html += `<div class="note-dot blue"></div>`;
+            }
+          }
+
+          // スケールモードのマーカー表示
+          if (state.mode === "SCALE" && isPlayable) {
+            const pitch = (OPEN_STRINGS[strNum] + fretNum) % 12;
+            const scale = SCALES[state.selectedScaleIndex];
+            const allowed = scale.intervals.map(i => (state.selectedKeyIndex + i) % 12);
+            if (allowed.includes(pitch)) {
+              const isScaleRoot = pitch === (state.selectedKeyIndex % 12);
+              const colorClass = isScaleRoot ? "red" : (isTarget ? "purple" : "blue");
+              const diff = ((pitch - state.selectedKeyIndex) % 12 + 12) % 12;
+              let label = "";
+              if (isScaleRoot) label = "R";
+              else if (state.showAllNotes && !isTimeAttack) label = INTERVALS[diff];
+
+              html += `<div class="note-dot ${colorClass}">${label}</div>`;
+            }
+          }
+
+          // 可視化ON時の全ノート表示（音名・度数モード）
+          if (state.mode !== "SCALE" && state.showAllNotes && !isTimeAttack) {
+            const pitch = (OPEN_STRINGS[strNum] + fretNum) % 12;
+            const noteName = NOTES[pitch];
+            let intervalLabel = "";
+            if (state.mode === "INTERVAL" && OPEN_STRINGS[state.question.rootString] !== undefined) {
+              const rPitch = OPEN_STRINGS[state.question.rootString] + state.question.rootFret;
+              const diff = ((pitch - rPitch) % 12 + 12) % 12;
+              intervalLabel = INTERVALS[diff];
+            }
+            const colorClass = isRoot ? "red" : isTarget ? "blue" : "dark";
+            html += `<div class="note-dot ${colorClass}">${state.mode === "INTERVAL" ? intervalLabel : noteName}</div>`;
+          }
+
+          // フィルター外暗転マスク
+          if (!isCellActive) {
+            html += `<div class="dim-mask"></div>`;
+          }
+
+          html += `</div>`;
+        }
+        html += `</div>`;
+      });
+
+      // フレット番号行
+      html += `<div class="fret-numbers-row">`;
+      for (let fretNum = 0; fretNum <= TOTAL_FRETS; fretNum++) {
+        html += `<div class="fret-num-cell ${fretNum === 0 ? "open-fret" : ""}">${fretNum}</div>`;
+      }
+      html += `</div>`;
+      fbInner.innerHTML = html;
+
+      // ガイドテキスト
+      const guideEl = document.getElementById("guideMsg");
+      if (state.mode === "SCALE") {
+        guideEl.textContent = `【${NOTES[state.selectedKeyIndex]} ${SCALES[state.selectedScaleIndex].name}】🟣 の度数を当ててください`;
+      } else if (state.showAllNotes) {
+        guideEl.textContent = "指板上のノートを表示中";
+      } else if (state.mode === "NOTE") {
+        guideEl.textContent = "🔴 のフレットの音名を当ててください";
+      } else {
+        guideEl.textContent = "🔴 (Root) から見た 🔵 の度数を当ててください";
+      }
+
+      // スタートボタン / フィードバック表示
+      const fbArea = document.getElementById("feedbackArea");
+      if (isTimeAttack && !state.isPlaying && state.timeLeft === 60) {
+        fbArea.innerHTML = `<button class="start-btn" onclick="startTimer()">START (60秒)</button>`;
+      } else if (isTimeAttack && !state.isPlaying && state.timeLeft === 0) {
+        fbArea.innerHTML = `<button class="start-btn" onclick="startTimer()">RETRY</button>`;
+      } else {
+        fbArea.innerHTML = `<span class="result-text" id="resultText">${state.resultMsg}</span>`;
+      }
+
+      // 四択ボタン描画
+      const optGrid = document.getElementById("optionsGrid");
+      optGrid.innerHTML = state.options.map(opt => `
+        <button class="option-btn" ${(!isPlayable || state.showAllNotes) ? "disabled" : ""} onclick="handleAnswer('${opt}')">
+          ${opt}
+        </button>
+      `).join("");
+
+      // スケールモード用スライダー表示制御
+      const slidersBox = document.getElementById("scaleSlidersBox");
+      slidersBox.style.display = state.mode === "SCALE" ? "flex" : "none";
+      document.getElementById("keyLabel").textContent = `Key: ${NOTES[state.selectedKeyIndex]}`;
+      document.getElementById("scaleLabel").textContent = SCALES[state.selectedScaleIndex].name;
+    }
+
+    // --- 回答判定 ---
+    function handleAnswer(selected) {
+      if (state.timeMode === "TIME" && !state.isPlaying) return;
+      if (selected === state.question.answer) {
+        if (state.timeMode === "TIME") {
+          state.score += 10 + (state.combo * 5);
+          state.combo += 1;
+        }
+        state.resultMsg = "PERFECT!";
+        generateQuestion();
+      } else {
+        if (state.timeMode === "TIME") state.combo = 0;
+        state.resultMsg = "MISS...";
+      }
+      render();
+      triggerPop();
+    }
+
+    // --- イベントリスナー ---
+    document.getElementById("btnMode").onclick = () => {
+      state.mode = state.mode === "NOTE" ? "INTERVAL" : state.mode === "INTERVAL" ? "SCALE" : "NOTE";
+      resetSession();
+    };
+    document.getElementById("btnString").onclick = () => {
+      state.stringFilter = state.stringFilter === "ALL" ? "HIGH" : state.stringFilter === "HIGH" ? "LOW" : "ALL";
+      resetSession();
+    };
+    document.getElementById("btnFret").onclick = () => {
+      state.fretFilter = state.fretFilter === "ALL" ? "LOW" : "ALL";
+      resetSession();
+    };
+    document.getElementById("btnTime").onclick = () => {
+      state.timeMode = state.timeMode === "FREE" ? "TIME" : "FREE";
+      resetSession();
+    };
+    document.getElementById("btnVis").onclick = () => {
+      state.showAllNotes = !state.showAllNotes;
+      render();
+    };
+    document.getElementById("btnTheme").onclick = () => {
+      state.theme = state.theme === "ROSEWOOD" ? "MAPLE" : "ROSEWOOD";
+      render();
+    };
+    document.getElementById("keySlider").oninput = (e) => {
+      state.selectedKeyIndex = parseInt(e.target.value, 10);
+      resetSession();
+    };
+    document.getElementById("scaleSlider").oninput = (e) => {
+      state.selectedScaleIndex = parseInt(e.target.value, 10);
+      resetSession();
+    };
+
+    // 初期描画
+    resetSession();
+  </script>
+</body>
+</html>
